@@ -23,14 +23,10 @@ import android.os.Build
 import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.CommandButton
-import androidx.media3.session.LibraryResult
-import androidx.media3.session.MediaLibraryService
-import androidx.media3.session.MediaSession
+import androidx.media3.session.*
 import androidx.media3.session.MediaSession.ControllerInfo
-import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -182,17 +178,16 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onAddMediaItems(
-      mediaSession: MediaSession,
-      controller: MediaSession.ControllerInfo,
-      mediaItems: List<MediaItem>
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        mediaItems: List<MediaItem>
     ): ListenableFuture<List<MediaItem>> {
-      val updatedMediaItems: List<MediaItem> =
-        mediaItems.map { mediaItem ->
-          if (mediaItem.requestMetadata.searchQuery != null)
-            getMediaItemFromSearchQuery(mediaItem.requestMetadata.searchQuery!!)
-          else MediaItemTree.getItem(mediaItem.mediaId) ?: mediaItem
-        }
-      return Futures.immediateFuture(updatedMediaItems)
+      return Futures.immediateFuture(
+          listOf(
+              MediaItem.fromUri("https://cdn.podimo.com/audios/16fc45ec-3ef2-4e53-97a3-69811ee274de.mp3"),
+              MediaItem.fromUri("https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.mp4/.m3u8"),
+          )
+      )
     }
 
     private fun getMediaItemFromSearchQuery(query: String): MediaItem {
@@ -200,11 +195,11 @@ class PlaybackService : MediaLibraryService() {
       // Where [Title]: must be exactly matched
       // If no media with exact name found, play a random media instead
       val mediaTitle =
-        if (query.startsWith("play ", ignoreCase = true)) {
-          query.drop(5)
-        } else {
-          query
-        }
+          if (query.startsWith("play ", ignoreCase = true)) {
+            query.drop(5)
+          } else {
+            query
+          }
 
       return MediaItemTree.getItemFromTitle(mediaTitle) ?: MediaItemTree.getRandomItem()
     }
@@ -212,9 +207,18 @@ class PlaybackService : MediaLibraryService() {
 
   private fun initializeSessionAndPlayer() {
     player =
-      ExoPlayer.Builder(this)
-        .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus= */ true)
-        .build()
+        ExoPlayer.Builder(this)
+            .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus= */ true)
+            .build().apply {
+              playWhenReady = true
+
+              addListener(object : Player.Listener {
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                  super.onMediaItemTransition(mediaItem, reason)
+                  player.seekTo(30000)
+                }
+              })
+            }
     MediaItemTree.initialize(assets)
 
     val sessionActivityPendingIntent =
